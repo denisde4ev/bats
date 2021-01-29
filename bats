@@ -1,44 +1,49 @@
-#!/bin/bash
+#!/bin/sh
 
-shopt -s nullglob
+set -eu
+IFS='
+'
 
 power_supply_path=/sys/class/power_supply
 
 sum() {
-    local existing
-    declare -a existing
+    local total
+    total=0
 
     for file do
-        [[ -f $file ]] && existing+=( "$file" )
+        [ -f "$file" ] && total=$(( total + $(cat "$file") ))
     done
-    awk '{ sum += $1 } END { print sum }' "${existing[@]}" < /dev/null
+    echo "$total"
 }
 
 get_statuses() {
-    grep -ho '^.' "${@/%//status}" </dev/null | paste -sd ''
+    grep -ho '^.' $(printf '%s/status\n' "$@") </dev/null | tr -d '\n'
 }
 
-battery_paths=( "$@" )
-battery_paths=( "${battery_paths[@]/#/$power_supply_path/}" )
-(( ${#battery_paths[@]} == 0 )) && battery_paths=( "$power_supply_path"/BAT* )
 
-if (( ${#battery_paths[@]} == 0 )); then
+if [ $# -eq 0 ]; then
+	set -- "$power_supply_path"/BAT*
+else
+	set -- $( printf "$power_supply_path/%s\\n" "$@")
+fi
+
+if [ $# -eq 0 ] && [ -e "$1" ]; then
     printf 'No batteries found in %s\n' "$power_supply_path" >&2
     exit 2
 fi
 
 charge_full=$(sum \
-    "${battery_paths[@]/%//energy_full}" \
-    "${battery_paths[@]/%//charge_full}"
+    $(printf '%s/energy_full\n' "$@") \
+    $(printf '%s/charge_full\n' "$@")
 )
 charge_now=$(sum \
-    "${battery_paths[@]/%//energy_now}" \
-    "${battery_paths[@]/%//charge_now}"
+    $(printf '%s/energy_now\n' "$@") \
+    $(printf '%s/charge_now\n' "$@")
 )
-status=$(get_statuses "${battery_paths[@]}")
+status=$(get_statuses "$@")
 
 # Avoid dividing by zero if charge_full is nonsense
-if (( charge_full <= 0 )); then
+if [ "$charge_full" -le 0 ]; then
     printf 'Your battery max charge value (%s) is <= 0.\n' "$charge_full" >&2
     printf 'Please consider filing a kernel bug for your battery.\n' >&2
     exit 1
@@ -47,9 +52,9 @@ fi
 charge_percentage=$(( charge_now * 100 / charge_full ))
 
 # Some batteries show values >100 and never "F", or report >100 values :-(
-if (( charge_percentage >= 100 )); then
+if [ "$charge_percentage" -ge 100 ]; then
     charge_percentage=100
-    status=$(printf "%0.sF" "${battery_paths[@]}")
+    status=$(printf "%0.sF" "$@")
 fi
 
 printf '%d%s\n' "$charge_percentage" "$status"
