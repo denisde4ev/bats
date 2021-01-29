@@ -19,7 +19,7 @@ if [ ! -d "$1" ]; then
 fi
 
 if [ $# = 1 ]; then # on Android else gets wrong values value, also 99.99% of devices are with 1 battery
-	printf '%d%s\n' "$(cat "$1/capacity")" "$(grep -ho '^.' "$1/status")"
+	printf '%d%s\n' "$(cat "$1/capacity")" "$(cut -c 1 "$1/status")"
 	exit $?
 fi
 
@@ -34,7 +34,7 @@ sum() {
 }
 
 get_statuses() {
-	grep -ho '^.' $(printf '%s/status\n' "$@") </dev/null | tr -d '\n'
+	cut -c 1 $(printf '%s/status\n' "$@") </dev/null | tr -d '\n'
 }
 
 charge_full=$(sum \
