@@ -13,23 +13,24 @@ else
 	set -- $( printf "$power_supply_path/%s\\n" "$@")
 fi
 
+if [ $# = 1 ] && [ -e "$1/capacity" ]; then # on Android else gets wrong values value, also 99.99% of devices are with 1 battery
+	printf '%d%s\n' "$(cat "$1/capacity")" "$(cut -c 1 "$1/status")"
+	exit $?
+fi
+
 if [ ! -d "$1" ]; then
 	printf 'No batteries found in %s\n' "$power_supply_path" >&2
 	exit 2
 fi
 
-if [ $# = 1 ]; then # on Android else gets wrong values value, also 99.99% of devices are with 1 battery
-	printf '%d%s\n' "$(cat "$1/capacity")" "$(cut -c 1 "$1/status")"
-	exit $?
-fi
 
 sum() {
-	local total
-	total=0
+	local total;total=
 
 	for file do
 		[ -f "$file" ] && total=$(( total + $(cat "$file") ))
 	done
+	[ -n "$total" ] || return 2
 	echo "$total"
 }
 
