@@ -6,6 +6,23 @@ IFS='
 
 power_supply_path=/sys/class/power_supply
 
+if [ $# -eq 0 ]; then
+	set -- "$power_supply_path"/BAT*
+	[ ! -d "$1" ] && [ -d "$power_supply_path"/battery ] && set -- "$power_supply_path"/battery # Android
+else
+	set -- $( printf "$power_supply_path/%s\\n" "$@")
+fi
+
+if [ ! -d "$1" ]; then
+	printf 'No batteries found in %s\n' "$power_supply_path" >&2
+	exit 2
+fi
+
+if [ $# = 1 ]; then # on Android else gets wrong values value, also 99.99% of devices are with 1 battery
+	printf '%d%s\n' "$(cat "$1/capacity")" "$(grep -ho '^.' "$1/status")"
+	exit $?
+fi
+
 sum() {
 	local total
 	total=0
@@ -19,18 +36,6 @@ sum() {
 get_statuses() {
 	grep -ho '^.' $(printf '%s/status\n' "$@") </dev/null | tr -d '\n'
 }
-
-
-if [ $# -eq 0 ]; then
-	set -- "$power_supply_path"/BAT*
-else
-	set -- $( printf "$power_supply_path/%s\\n" "$@")
-fi
-
-if [ $# -eq 0 ] && [ -e "$1" ]; then
-	printf 'No batteries found in %s\n' "$power_supply_path" >&2
-	exit 2
-fi
 
 charge_full=$(sum \
 	$(printf '%s/energy_full\n' "$@") \
